@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Global – AI Resume Analyser</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="branding">
+          <div class="logo-circle">GA</div>
+          <div>
+            <h1>Global – AI Resume Analyser</h1>
+            <p>Global ATS &amp; Talent Intelligence — roles suggested from your resume</p>
+          </div>
+        </div>
+      </header>
+
+      <main class="content">
+        <section class="card upload-card">
+          <h2>Upload Resume</h2>
+          <p class="subtitle">
+            Supported formats: <strong>.pdf</strong>, <strong>.docx</strong>. We detect your domain, seniority, and suggest roles from your resume — no manual selection needed.
+          </p>
+
+          <form id="analyse-form">
+            <div class="field-group">
+              <label for="resume">Resume File</label>
+              <input type="file" id="resume" name="resume" accept=".pdf,.docx" required />
+            </div>
+
+            <button type="submit" class="primary-btn">Analyse Resume</button>
+          </form>
+
+          <div id="error-box" class="error-box hidden"></div>
+        </section>
+
+        <section class="card result-card hidden" id="result-card">
+          <h2>Global Talent Intelligence Dashboard</h2>
+          <div id="loading" class="loading hidden">Analysing resume…</div>
+
+          <div id="result-content" class="result-content hidden">
+            <div class="score-section">
+              <div>
+                <h3>Overall ATS Score</h3>
+                <p id="score-value" class="score-value"></p>
+              </div>
+              <p id="domain-seniority" class="meta-text"></p>
+              <div class="score-bar-container">
+                <div id="score-bar" class="score-bar"></div>
+              </div>
+              <p id="market-level" class="market-level"></p>
+              <p id="allow-flag" class="allow-flag"></p>
+            </div>
+
+            <div class="grid">
+              <div class="box">
+                <h3>Score Breakdown</h3>
+                <ul id="score-breakdown"></ul>
+                <p id="impact-density" class="meta-text"></p>
+              </div>
+
+              <div class="box">
+                <h3>Important Skills Detected In Your Resume</h3>
+                <ul id="important-skills"></ul>
+              </div>
+
+              <div class="box">
+                <h3>Missing / Weak Skills</h3>
+                <ul id="missing-skills"></ul>
+              </div>
+
+              <div class="box box-wide">
+                <h3>Suggested Global Roles</h3>
+                <p id="roles-score-band" class="meta-text roles-score-band"></p>
+                <ul id="roles-list"></ul>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside id="chatbot-wrapper" class="chatbot-wrapper">
+        <div id="chatbot-ball" class="chatbot-ball" title="Open AI Coach">
+          <span class="chatbot-ball-icon" aria-hidden="true">?</span>
+          <div class="chatbot-dream-box">
+            <span>Any help?</span>
+          </div>
+        </div>
+        <div id="chatbot-panel" class="chatbot-shell chatbot-panel">
+          <div class="chat-header">
+            <div>
+              <p class="chat-title">Smart AI Career Coach</p>
+              <p class="chat-subtitle">Ask how to reach 80+ ATS, improve skills, or choose roles — based on your resume.</p>
+            </div>
+            <button type="button" id="chatbot-minimize" class="chatbot-minimize-btn" title="Minimize">−</button>
+          </div>
+          <div id="chat-body" class="chat-body">
+            <div class="chat-message ai">
+              <p>
+                I’m your global AI coach. Once you analyse a resume, ask me how to improve your score,
+                close skill gaps, or pick realistic roles.
+              </p>
+            </div>
+          </div>
+          <form id="chat-form" class="chat-input-row">
+            <input
+              id="chat-input"
+              type="text"
+              placeholder="Ask about skills, roles, or how to reach 80+ ATS…"
+              autocomplete="off"
+            />
+            <button type="submit" class="chat-send-btn">Send</button>
+          </form>
+        </div>
+      </aside>
+
+      <footer class="app-footer">
+        <p>TALENTX – Global ATS &amp; Talent Intelligence Prototype</p>
+      </footer>
+    </div>
+
+    <script>
+      const form = document.getElementById("analyse-form");
+      const errorBox = document.getElementById("error-box");
+      const resultCard = document.getElementById("result-card");
+      const loading = document.getElementById("loading");
+      const resultContent = document.getElementById("result-content");
+      const chatBody = document.getElementById("chat-body");
+      const chatForm = document.getElementById("chat-form");
+      const chatInput = document.getElementById("chat-input");
+      const chatbotWrapper = document.getElementById("chatbot-wrapper");
+      const chatbotBall = document.getElementById("chatbot-ball");
+      const chatbotPanel = document.getElementById("chatbot-panel");
+      const chatbotMinimize = document.getElementById("chatbot-minimize");
+
+      function openChatbot() {
+        chatbotBall.classList.add("chatbot-ball--hidden");
+        chatbotPanel.classList.add("chatbot-panel--open");
+      }
+
+      function closeChatbot() {
+        chatbotPanel.classList.remove("chatbot-panel--open");
+        chatbotBall.classList.remove("chatbot-ball--hidden");
+      }
+
+      chatbotBall.addEventListener("click", openChatbot);
+      chatbotMinimize.addEventListener("click", closeChatbot);
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        errorBox.classList.add("hidden");
+        resultCard.classList.remove("hidden");
+        loading.classList.remove("hidden");
+        resultContent.classList.add("hidden");
+
+        const fileInput = document.getElementById("resume");
+        if (!fileInput.files.length) {
+          showError("Please choose a resume file.");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("resume", fileInput.files[0]);
+
+        try {
+          const res = await fetch("/analyze", {
+            method: "POST",
+            body: formData,
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Analysis failed");
+          }
+
+          renderResult(data);
+        } catch (err) {
+          showError(err.message || "Unable to analyse resume.");
+        } finally {
+          loading.classList.add("hidden");
+        }
+      });
+
+      function showError(message) {
+        errorBox.textContent = message;
+        errorBox.classList.remove("hidden");
+      }
+
+      function renderResult(data) {
+        resultContent.classList.remove("hidden");
+
+        const score = data.score || 0;
+        document.getElementById("score-value").textContent = `${score}/100`;
+
+        const scoreBar = document.getElementById("score-bar");
+        scoreBar.style.width = `${Math.min(score, 100)}%`;
+
+        const breakdown = data.breakdown || {};
+        const breakdownList = document.getElementById("score-breakdown");
+        breakdownList.innerHTML = "";
+        const breakdownMax = {
+          content_relevance: 40,
+          keyword_optimization: 30,
+          structural_integrity: 20,
+          star_impact: 10,
+        };
+        Object.entries(breakdown).forEach(([key, value]) => {
+          const max = breakdownMax[key] || 0;
+          const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+          const li = document.createElement("li");
+          const percent = max ? Math.min((value / max) * 100, 100) : 0;
+          li.innerHTML = `
+            <div class="metric-row">
+              <span class="metric-label">${label}</span>
+              <span class="metric-value">${value}/${max}</span>
+            </div>
+            <div class="metric-bar">
+              <div class="metric-bar-fill" style="width: ${percent}%;"></div>
+            </div>
+          `;
+          breakdownList.appendChild(li);
+        });
+
+        document.getElementById(
+          "impact-density"
+        ).textContent = `Impact Density: ${data.impact_density_per_100_words} metrics per 100 words`;
+
+        const marketLevel = data.market_competitiveness || "N/A";
+        document.getElementById(
+          "market-level"
+        ).textContent = `Market Competitiveness: ${marketLevel}`;
+
+        const domain = data.detected_domain || "N/A";
+        const seniority = data.seniority_level || "N/A";
+        document.getElementById(
+          "domain-seniority"
+        ).textContent = `Detected Domain: ${domain} | Seniority: ${seniority}`;
+
+        const allowText = data.allow_career_mapping
+          ? "Status: PASS – Career mapping unlocked (score ≥ 80)"
+          : "Status: HOLD – Optimization mode only (score < 80)";
+        document.getElementById("allow-flag")
+    .classList.toggle("pass", data.allow_career_mapping);
+
+        document.getElementById("allow-flag")
+    .classList.toggle("fail", !data.allow_career_mapping);
+
+       const roles = data.suggested_roles || [];
+       const rolesList = document.getElementById("roles-list");
+         rolesList.innerHTML = "";
+
+const bandEl = document.getElementById("roles-score-band");
+bandEl.textContent = data.roles_score_band || "Based on your ATS score (top to low fit)";
+        if (data.mode === "career_mapping" && roles.length) {
+          roles.forEach((role) => {
+            const li = document.createElement("li");
+            li.textContent = role;
+            rolesList.appendChild(li);
+          });
+        } else {
+          const li = document.createElement("li");
+          li.textContent = "Career recommendations are locked. Improve ATS score to ≥ 80 to unlock.";
+          rolesList.appendChild(li);
+        }
+
+        const importantSkills = data.important_skills || [];
+        const importantSkillsList = document.getElementById("important-skills");
+        importantSkillsList.innerHTML = "";
+        importantSkills.forEach((s) => {
+          const li = document.createElement("li");
+          li.textContent = s;
+          importantSkillsList.appendChild(li);
+        });
+
+        const missing = data.missing_important_skills || [];
+        const missingList = document.getElementById("missing-skills");
+        missingList.innerHTML = "";
+        if (!missing.length) {
+          const li = document.createElement("li");
+          li.textContent = "No major gaps detected in core skills for your detected role.";
+          missingList.appendChild(li);
+        } else {
+          missing.forEach((s) => {
+            const li = document.createElement("li");
+            li.textContent = s;
+            missingList.appendChild(li);
+          });
+        }
+      }
+
+      chatForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const value = chatInput.value.trim();
+        if (!value) return;
+
+        appendChatMessage("user", value);
+        chatInput.value = "";
+
+        try {
+          const res = await fetch("/chat", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ message: value }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Chat request failed");
+          }
+          appendChatMessage("ai", data.answer || "");
+        } catch (err) {
+          appendChatMessage(
+            "ai",
+            err.message || "I could not process that question. Try again after analysing a resume."
+          );
+        }
+      });
+
+      function appendChatMessage(role, text) {
+        const wrapper = document.createElement("div");
+        wrapper.className = `chat-message ${role}`;
+        const p = document.createElement("p");
+        p.textContent = text;
+        wrapper.appendChild(p);
+        chatBody.appendChild(wrapper);
+        chatBody.scrollTop = chatBody.scrollHeight;
+      }
+    </script>
+  </body>
+</html>
+
