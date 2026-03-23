@@ -22,8 +22,6 @@ ALLOWED_EXTENSIONS = {"pdf", "docx"}
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-
-app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 LAST_ANALYSIS: Optional[Dict[str, Any]] = None
